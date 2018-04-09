@@ -1,0 +1,182 @@
+---
+title: "rgl package"
+author: "蔡宜君"
+date: "2018/2/20"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r include = FALSE}
+library(knitr)
+library(rgl)
+library(plotly)
+data('iris')
+x<-iris$Sepal.Length
+y<-iris$Petal.Length
+z<-iris$Sepal.Width
+```
+#互動式動圖
+<br />
+*使用 toggleWidget() 指令以按鈕指定要顯示的項目
+```{r results = "hide"}
+open3d()
+```
+```{r}
+c<-palette(c("Rosybrown","#E3BAB3",'#849974'))[as.numeric(iris$Species)]
+setosa <- with(subset(iris, Species == "setosa"), 
+     spheres3d(Sepal.Length, Sepal.Width, Petal.Length, 
+                  col=c[1],
+                  radius = 0.211))
+versicolor <- with(subset(iris, Species == "versicolor"), 
+     spheres3d(Sepal.Length, Sepal.Width, Petal.Length, 
+               col=c[2],
+               radius = 0.211))
+virginica <- with(subset(iris, Species == "virginica"), 
+     spheres3d(Sepal.Length, Sepal.Width, Petal.Length, 
+               col=c[3],
+               radius = 0.211))
+aspect3d(1,1,1)
+axesid <- decorate3d()
+rglwidget() %>%
+toggleWidget(ids = setosa) %>%
+toggleWidget(ids = versicolor) %>%
+toggleWidget(ids = virginica) %>%
+toggleWidget(ids = axesid)
+```
+<br />
+*指令 playwidget() 用來設置可控制動畫的按鈕並顯示於網頁文件中。主要結合控制動畫變動特徵的指令(ex. 顏色的變動或是位置的變動) 如vertexControl() 、 ageControl() 、 propertyControl() 使用。簡單來說，包含widget的指令目的是在於顯示，包含Control的指令目的是設置。
+<br />
+*vertixControl() 控制某個對象的頂點位置，並使某物依照指定的位置移動。
+```{r results = "hide"}
+open3d()
+```
+```{r}
+  theta <- seq(0, 6*pi, len=100)
+  xyz <- cbind(sin(theta), cos(theta), theta)
+  plot3d(xyz, type="l")
+  id <- spheres3d(xyz[1,,drop=FALSE], col="rosybrown")
+
+  rglwidget(width=500, height=300) %>%
+  playwidget(vertexControl(values=xyz,
+                           attributes=c("x", "y", "z"),
+                           objid = id, param=1:100),
+             start = 1, stop = 100, rate=10)
+ 
+  #attributes()按照何種屬性變動。如果為c("x", "y", "z")代表希望沿著座標變動;若放入顏色則會變動顏色等...
+```
+<br />
+*ageControl 設置每個頂點的生成時間，並以生成時間繪製動畫
+```{r results = "hide"}
+par3d(windowRect = c(100, 100, 612, 612))
+```
+```{r}
+theta <- seq(0, 4*pi, len=100)
+xyz <- cbind(sin(theta), cos(theta), sin(theta/2))
+lineid <- plot3d(xyz, type="l", alpha = 0, lwd = 5, col = "rosybrown")
+
+rglwidget(width=500, height=300) %>%
+playwidget(ageControl(births = theta,
+                      ages = c(-4*pi, -4*pi, 1-4*pi, 0, 0, 1),
+                      objids = lineid,
+                      alpha = c(0, 1, 0, 0, 1, 0)),
+           start = 0, stop = 4*pi,
+           step = 0.1, rate = 4)
+  
+
+      
+```
+
+#讓rgl顯示於網頁上
+*使用指令 rglwidget()  將rgl匯出的圖顯示於網頁文件上，或是儲存為網頁格式。
+```{r results = "hide"}
+theta <- seq(0, 6*pi, len=100)
+xyz <- cbind(sin(theta), cos(theta), theta)
+plot3d(xyz, type="l")
+id <- spheres3d(xyz[1,,drop=FALSE], col="red")
+
+rglwidget(width=500, height=300) %>%
+playwidget(vertexControl(values=xyz,
+                           attributes=c("x", "y", "z"),
+                           objid = id),
+             start = 1, stop = 100, rate=10)
+filename <- tempfile(fileext = ".html")
+htmlwidgets::saveWidget(rglwidget(), filename)
+browseURL(filename)
+```
+[在網頁上呈現的圖](http://localhost:25982/session/file24d4ece0aee.html)<br /><br />
+
+#進階動圖
+<br/>
+1.火山
+```{r results = "hide" ,echo = FALSE}
+open3d()
+```
+```{r echo = FALSE}
+data(volcano)
+z <-  3*volcano # 讓火山更立體
+x <- 10*(1:nrow(z)) # 10 meter spacing (S to N)
+y <- 10*(1:ncol(z)) # 10 meter spacing (E to W)
+zlim <- range(z)
+zlen <- zlim[2] - zlim[1] + 1
+colorlut <- terrain.colors(zlen) # 設定一個與全距一樣多的色盤(地面的色彩)(有幾種高度)
+col <- colorlut[ z - zlim[1] + 1 ] # 為每一個高度的點設定顏色
+bg3d("gray50") #背景色
+surface3d(x, y, z, color = col, back = "lines")
+r <- max(y) - mean(y)
+lightid <- spheres3d(1, 1, 1, alpha = 0)
+frame <- function(time) {
+  a <- pi*(time - 1)
+  save <- par3d(skipRedraw = TRUE)
+  clear3d(type = "lights")
+  rgl.pop(id = lightid)
+  xyz <- matrix(c(r*sin(a) + mean(x), r*cos(a) + mean(y), max(z)), ncol = 3)
+  light3d(x = xyz, diffuse = "gray75",
+          specular = "gray75", viewpoint.rel = FALSE)
+  light3d(diffuse = "gray10", specular = "gray25")
+  lightid <<- spheres3d(xyz, emission = "white", radius = 4)
+  par3d(save)
+  Sys.sleep(0.02)
+  NULL
+}
+play3d(frame, duration = 2)
+rglwidget()
+```
+<br/ >
+2.繪製地球並旋轉
+```{r results = "hide" ,echo = FALSE}
+open3d()
+```
+```{r echo = FALSE}
+lat <- matrix(seq(90, -90, len = 50)*pi/180, 50, 50, byrow = TRUE)
+long <- matrix(seq(-180, 180, len = 50)*pi/180, 50, 50)
+r <- 6378.1 # radius of Earth in km
+x <- r*cos(lat)*cos(long)
+y <- r*cos(lat)*sin(long)
+z <- r*sin(lat)
+persp3d(x, y, z, col = "white",
+        texture = system.file("textures/worldsmall.png", package = "rgl"),
+        specular = "black", axes = FALSE, box = FALSE, xlab = "", ylab = "", zlab = "",
+        normal_x = x, normal_y = y, normal_z = z)
+if (!rgl.useNULL())
+  play3d(spin3d(axis = c(0, 0, 1), rpm = 16), duration = 2.5)
+rglwidget()
+```
+<br/>
+[3.淹水](http://www.stats.uwo.ca/faculty/murdoch/talks/2015-12-02/rgl_on_the_web.html#36)
+
+
+#參考網頁
+<br/ >
+[其他動圖](https://cran.r-project.org/web/packages/rgl/vignettes/WebGL.html)
+<br/ >
+[rgl作者做的套件簡介](http://www.stats.uwo.ca/faculty/murdoch/talks/2015-12-02/rgl_on_the_web.html#36)
+<br/ >
+[用rgl繪製互動式三維長條圖](https://stackoverflow.com/questions/37795608/hist3d-2d-plot-in-background-in-r)
+
